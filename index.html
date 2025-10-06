@@ -4,6 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Administración de Catálogo - Pankikics </title>
+    <!-- Sistema de Notificaciones: Cuando alguien compra en el catálogo, aparecerá una notificación aquí -->
     <!-- Incluir bibliotecas de Firebase (Compatibilidad) -->
     <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore-compat.js"></script>
@@ -172,6 +173,90 @@
             padding: 2px;
             transform: rotate(3deg);
             line-height: 1;
+        }
+
+        /* Estilos para Notificaciones */
+        .notification {
+            background-color: var(--card-dark);
+            color: var(--text-light);
+            border: 3px solid var(--accent);
+            border-radius: 8px;
+            padding: 1rem;
+            margin-bottom: 1rem;
+            box-shadow: 8px 8px 0px var(--accent);
+            transform: rotate(-1deg);
+            opacity: 0;
+            transform: translateX(100%) rotate(-1deg);
+            transition: all 0.3s ease;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .notification.show {
+            opacity: 1;
+            transform: translateX(0) rotate(-1deg);
+        }
+
+        .notification.hide {
+            opacity: 0;
+            transform: translateX(100%) rotate(-1deg);
+        }
+
+        .notification-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 0.5rem;
+        }
+
+        .notification-title {
+            font-weight: 800;
+            font-size: 1rem;
+            text-shadow: 2px 2px 0 var(--accent);
+            border-bottom: 2px dashed var(--accent);
+            padding-bottom: 0.3rem;
+        }
+
+        .notification-time {
+            font-size: 0.8rem;
+            color: var(--text-light);
+            opacity: 0.8;
+        }
+
+        .notification-content {
+            font-size: 0.9rem;
+            line-height: 1.4;
+        }
+
+        .notification-user {
+            font-weight: 600;
+            color: var(--text-light);
+        }
+
+        .notification-product {
+            font-weight: 600;
+            color: var(--text-light);
+        }
+
+        .notification-close {
+            position: absolute;
+            top: 0.5rem;
+            right: 0.5rem;
+            background: var(--accent);
+            color: var(--text-light);
+            border: none;
+            width: 20px;
+            height: 20px;
+            border-radius: 50%;
+            cursor: pointer;
+            font-size: 0.8rem;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .notification-close:hover {
+            background: var(--accent-hover);
         }
         
         .grid {
@@ -478,6 +563,27 @@
                 box-shadow: 3px 3px 0px var(--text-light);
                 transform: rotate(0deg);
             }
+
+            /* Notificaciones en móvil */
+            .notification-container {
+                left: 10px;
+                right: 10px;
+                top: 80px;
+                max-width: none;
+            }
+
+            .notification {
+                transform: rotate(0deg);
+                margin-bottom: 0.5rem;
+            }
+
+            .notification.show {
+                transform: translateX(0) rotate(0deg);
+            }
+
+            .notification.hide {
+                transform: translateX(100%) rotate(0deg);
+            }
         }
     </style>
 </head>
@@ -499,6 +605,11 @@
             </div>
         </div>
     </header>
+
+    <!-- Contenedor de Notificaciones -->
+    <div id="notificationContainer" class="notification-container" style="position: fixed; top: 100px; right: 20px; z-index: 1000; max-width: 400px;">
+        <!-- Las notificaciones aparecerán aquí -->
+    </div>
 
     <div class="grid" id="productGrid"></div>
 
@@ -611,9 +722,87 @@
 
         let currentProductIdToEdit = null;
         let currentProductIdToDelete = null;
-        let allProducts = []; 
-        let cartItems = []; 
-        let currentItemToAdd = null; 
+        let allProducts = [];
+        let cartItems = [];
+        let currentItemToAdd = null;
+
+        // Sistema de Notificaciones
+        const notificationContainer = document.getElementById('notificationContainer');
+        let notifications = [];
+
+        // Función para mostrar notificación
+        function showNotification(compra) {
+            const notification = document.createElement('div');
+            notification.className = 'notification';
+
+            const fecha = compra.fecha.toDate();
+            const tiempoTranscurrido = getTimeAgo(fecha);
+
+            notification.innerHTML = `
+                <button class="notification-close" onclick="closeNotification(this)">×</button>
+                <div class="notification-header">
+                    <div class="notification-title">¡Nueva Compra!</div>
+                    <div class="notification-time">${tiempoTranscurrido}</div>
+                </div>
+                <div class="notification-content">
+                    <div class="notification-user">${compra.usuario}</div>
+                    <div>compró</div>
+                    <div class="notification-product">${compra.producto}</div>
+                </div>
+            `;
+
+            notificationContainer.appendChild(notification);
+
+            // Animar entrada
+            setTimeout(() => {
+                notification.classList.add('show');
+            }, 100);
+
+            // Auto-remover después de 10 segundos
+            setTimeout(() => {
+                removeNotification(notification);
+            }, 10000);
+
+            notifications.push(notification);
+        }
+
+        // Función para cerrar notificación manualmente
+        window.closeNotification = function(button) {
+            const notification = button.parentElement;
+            removeNotification(notification);
+        };
+
+        // Función para remover notificación
+        function removeNotification(notification) {
+            notification.classList.add('hide');
+            setTimeout(() => {
+                if (notification.parentElement) {
+                    notification.parentElement.removeChild(notification);
+                }
+                notifications = notifications.filter(n => n !== notification);
+            }, 300);
+        }
+
+        // Función para calcular tiempo transcurrido
+        function getTimeAgo(date) {
+            const now = new Date();
+            const diff = Math.floor((now - date) / 1000);
+
+            if (diff < 60) return 'hace unos segundos';
+            if (diff < 3600) return `hace ${Math.floor(diff / 60)} minutos`;
+            if (diff < 86400) return `hace ${Math.floor(diff / 3600)} horas`;
+            return `hace ${Math.floor(diff / 86400)} días`;
+        }
+
+        // Escuchar nuevas compras en tiempo real
+        db.collection('compras').orderBy('fecha', 'desc').limit(1).onSnapshot((snapshot) => {
+            snapshot.docChanges().forEach((change) => {
+                if (change.type === 'added') {
+                    const compra = change.doc.data();
+                    showNotification(compra);
+                }
+            });
+        });
 
         // Obtener elementos del DOM
         const btnAdd = document.getElementById('btnAdd');
@@ -1010,8 +1199,21 @@
             const productId = urlParams.get('id');
             if (productId) {
                 // Pequeño retraso para asegurar que Firebase cargue
-                setTimeout(() => mostrarDetalles(productId), 300); 
+                setTimeout(() => mostrarDetalles(productId), 300);
             }
+
+            // Función de prueba para simular una compra (solo para desarrollo)
+            window.testNotification = function() {
+                const testCompra = {
+                    usuario: 'Usuario de Prueba',
+                    producto: 'Panqueques Clásicos',
+                    cantidad: 5,
+                    precio: 7.50,
+                    total: 37.50,
+                    fecha: new Date()
+                };
+                showNotification(testCompra);
+            };
         };
 
         // Event listeners para cerrar modales
